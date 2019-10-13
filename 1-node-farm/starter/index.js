@@ -1,50 +1,70 @@
 const fs = require('fs');
-const http = require('http'); //
 const url = require('url');
+const http = require('http');
 
-// Blocking, synctonious way
-// const text = fs.readFileSync('./txt/input.txt','utf-8');
-// const textOut = `This is what we know about avocado ${text}. \n Created on ${Date.now()}`;
-// fs.writeFileSync('./txt/output.txt', textOut) ;
+// manipulate product data
+const getProductsHtml = (template, product) => {
+  return (output = template
+    .replace(/{%IMAGE%}/g, product.image)
+    .replace(/{%PRODUCTNAME%}/g, product.productName)
+    .replace(/{%QUANTITY%}/g, product.quantity)
+    .replace(/{%PRICE%}/g, product.price)
+    .replace(/{%ORGANIC%}/g, product.organic === true ? 'organic' : '')
+    .replace(/{%ID%}/g, product.id)
+    .replace(/{%FROM%}/g, product.from)
+    .replace(/{%NUTRIENTS%}/g, product.nutrients)
+    .replace(/{%DESCRIPTION%}/g, product.description));
+};
 
-// // async way
-// fs.readFile('./txt/start.txt', 'utf-8', (err, data1) => {
-//   fs.readFile(`./txt/${data1}.txt`, 'utf-8', (err, data2) => {
-//       console.log(data2);
-//     fs.readFile(`./txt/append.txt`, 'utf-8', (err, data3) => {
-//       console.log(data3);
-//       fs.writeFile('./txt/final.txt', `${data2} \n ${data3}`, 'utf-8', err => {
-//         console.log("Your file has been written 🤣")
-//       })
-//     })
-//   })
-// })
-// console.log("Will read file");
+// Read files
+const overview = fs.readFileSync(
+  __dirname + '/templates/overview.html',
+  'utf-8'
+);
+const displayProduct = fs.readFileSync(
+  __dirname + '/templates/displayProduct.html',
+  'utf-8'
+);
+const products = JSON.parse(
+  fs.readFileSync(__dirname + '/dev-data/data.json', 'utf-8')
+);
+const productTemplate = fs.readFileSync(
+  __dirname + '/templates/product.html',
+  'utf-8'
+);
+const server = http.createServer((req, res) => {
+  const { pathname, query } = url.parse(req.url, true);
 
-/// SERVER
+  if (pathname === '/' || pathname === '/overview') {
+    res.writeHead(200, {
+      'content-type': 'text/html'
+    });
 
-const data = fs.readFileSync(`${__dirname}/dev-data/data.json`,'utf-8');
-const dataObj = JSON.parse(data);
+    const productsHtml = products
+      .map(product => {
+        return getProductsHtml(displayProduct, product);
+      })
+      .join('');
 
-const server = http.createServer((req,res) => {
-  const pathName = req.url;
-
-  if(pathName === '/' || pathName === '/overview') {
-    res.end("This is the overview!");
-  } else if (pathName === '/product') {
-    res.end("This is the product!");
-  } else if( pathName === '/api') {
-    res.end(data);
-  }
-  else {
+    res.end(overview.replace(/{%PRODUCT_CONTAINER%}/g, productsHtml));
+  } else if (pathname === '/product') {
+    const product = products[query.id];
+    const output = getProductsHtml(productTemplate, product);
+    res.end(output);
+  } else if (pathname === '/api') {
+    res.writeHead(200, {
+      'content-type': 'application/json'
+    });
+    res.end(products);
+  } else {
     res.writeHead(404, {
       'content-type': 'text/html',
-      'my-own-header': 'Hello world!'
+      'page-not-found': '404'
     });
-    res.end("Page Not Found");
+    res.end('<h1>Page Not Found!<h1>');
   }
-})
+});
 
 server.listen(8000, '127.0.0.1', () => {
-  console.log('Listening to requests on port 8000');
-})
+  console.log('The server is running on port 8000');
+});
